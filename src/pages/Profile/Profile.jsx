@@ -442,7 +442,8 @@ export default function Profile() {
       localStorage.setItem("userEmail", updatedProfile.email);
       localStorage.setItem("userAvatar", updatedProfile.avatar);
       localStorage.setItem("userRole", updatedProfile.role || "");
-
+      window.dispatchEvent(new Event("flowioUserUpdated"));
+      
       setPendingAvatarUrl(null);
       setShowEditModal(false);
       showMessage("Profile updated successfully");
@@ -922,6 +923,7 @@ export default function Profile() {
                   </>
                 )}
               </button>
+              
             </div>
           </div>
         </div>

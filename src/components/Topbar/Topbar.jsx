@@ -14,8 +14,8 @@ import {
   FaCalendarAlt,
   FaRobot,
 } from "react-icons/fa";
+
 import NotificationsOverlay from "../NotificationsOverlay/NotificationsOverlay";
-import { getFlowioUser } from "../User/userProfile";
 
 export default function Topbar({
   title,
@@ -31,12 +31,25 @@ export default function Topbar({
   const [quickOpen, setQuickOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [logoutModal, setLogoutModal] = useState(false);
-  const [user, setUser] = useState(getFlowioUser());
+
+  const [user, setUser] = useState({
+    name: localStorage.getItem("userName") || "Flowio User",
+    avatar: localStorage.getItem("userAvatar") || "",
+    role: localStorage.getItem("userRole") || "Member",
+  });
 
   const hasSearchHandler = typeof onSearchChange === "function";
 
   useEffect(() => {
-    const updateUser = () => setUser(getFlowioUser());
+    const updateUser = () => {
+      setUser({
+        name: localStorage.getItem("userName") || "Flowio User",
+        avatar: localStorage.getItem("userAvatar") || "",
+        role: localStorage.getItem("userRole") || "Member",
+      });
+    };
+
+    updateUser();
 
     window.addEventListener("flowioUserUpdated", updateUser);
     window.addEventListener("storage", updateUser);
@@ -47,11 +60,9 @@ export default function Topbar({
     };
   }, []);
 
-  const userName =
-    user?.name || localStorage.getItem("userName") || "Flowio User";
-  const userRole = user?.role || localStorage.getItem("userRole") || "Member";
-  const userAvatar =
-    user?.avatar || localStorage.getItem("userAvatar") || "";
+  const userName = user.name || "Flowio User";
+  const userRole = user.role || "Member";
+  const userAvatar = user.avatar || "";
 
   const logout = () => {
     localStorage.removeItem("token");
@@ -101,75 +112,82 @@ export default function Topbar({
               />
             </div>
           )}
-<div className="relative">
-  <button
-    type="button"
-    onClick={() => {
-      setQuickOpen((prev) => !prev);
-      setOpen(false);
-      setUserMenuOpen(false);
-    }}
-    className="flowio-topbar-control flex h-10 items-center gap-2 rounded-[14px] border border-blue-300/10 bg-[#141d66]/90 px-4 text-white transition hover:brightness-125"
-  >
-    <FaBolt className="text-[#78aaff]" />
-    <span className="hidden text-sm font-semibold sm:block">
-      Quick
-    </span>
-  </button>
 
-  {quickOpen && (
-    <div className="absolute right-0 top-12 z-[9999] w-[220px] overflow-hidden rounded-[22px] border border-blue-300/10 bg-gradient-to-br from-[#151e66] to-[#070d35] p-2 text-white shadow-[0_25px_70px_rgba(0,0,0,.55)]">
-
-      <button
-        onClick={() => {
-          navigate("/meetings");
-          setQuickOpen(false);
-        }}
-        className="flex h-11 w-full items-center gap-3 rounded-[14px] px-3 text-sm transition hover:bg-white/10"
-      >
-        <FaVideo className="text-[#6eb5ff]" />
-        Meetings
-      </button>
-
-      <button
-        onClick={() => {
-          navigate("/summary");
-          setQuickOpen(false);
-        }}
-        className="flex h-11 w-full items-center gap-3 rounded-[14px] px-3 text-sm transition hover:bg-white/10"
-      >
-        <FaFileAlt className="text-[#865dff]" />
-        Summaries
-      </button>
-
-      <button
-        onClick={() => {
-          navigate("/schedule");
-          setQuickOpen(false);
-        }}
-        className="flex h-11 w-full items-center gap-3 rounded-[14px] px-3 text-sm transition hover:bg-white/10"
-      >
-        <FaCalendarAlt className="text-[#35b7ff]" />
-        Schedule
-      </button>
-
-      <button
-        onClick={() => {
-          navigate("/projects");
-          setQuickOpen(false);
-        }}
-        className="flex h-11 w-full items-center gap-3 rounded-[14px] px-3 text-sm transition hover:bg-white/10"
-      >
-        <FaRobot className="text-[#64CFFF]" />
-        AI Assistant
-      </button>
-    </div>
-  )}
-</div>
           <div className="relative">
             <button
+              type="button"
+              onClick={() => {
+                setQuickOpen((prev) => !prev);
+                setOpen(false);
+                setUserMenuOpen(false);
+              }}
+              className="flowio-topbar-control flex h-10 items-center gap-2 rounded-[14px] border border-blue-300/10 bg-[#141d66]/90 px-4 text-white transition hover:brightness-125"
+            >
+              <FaBolt className="text-[#78aaff]" />
+              <span className="hidden text-sm font-semibold sm:block">
+                Quick
+              </span>
+            </button>
+
+            {quickOpen && (
+              <div className="absolute right-0 top-12 z-[9999] w-[220px] overflow-hidden rounded-[22px] border border-blue-300/10 bg-gradient-to-br from-[#151e66] to-[#070d35] p-2 text-white shadow-[0_25px_70px_rgba(0,0,0,.55)]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate("/meetings");
+                    setQuickOpen(false);
+                  }}
+                  className="flex h-11 w-full items-center gap-3 rounded-[14px] px-3 text-sm transition hover:bg-white/10"
+                >
+                  <FaVideo className="text-[#6eb5ff]" />
+                  Meetings
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate("/summary");
+                    setQuickOpen(false);
+                  }}
+                  className="flex h-11 w-full items-center gap-3 rounded-[14px] px-3 text-sm transition hover:bg-white/10"
+                >
+                  <FaFileAlt className="text-[#865dff]" />
+                  Summaries
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate("/schedule");
+                    setQuickOpen(false);
+                  }}
+                  className="flex h-11 w-full items-center gap-3 rounded-[14px] px-3 text-sm transition hover:bg-white/10"
+                >
+                  <FaCalendarAlt className="text-[#35b7ff]" />
+                  Schedule
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate("/projects");
+                    setQuickOpen(false);
+                  }}
+                  className="flex h-11 w-full items-center gap-3 rounded-[14px] px-3 text-sm transition hover:bg-white/10"
+                >
+                  <FaRobot className="text-[#64CFFF]" />
+                  AI Assistant
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="relative">
+            <button
+              type="button"
               onClick={() => {
                 setOpen((prev) => !prev);
+                setQuickOpen(false);
                 setUserMenuOpen(false);
               }}
               className="flowio-topbar-control relative flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] border border-blue-300/10 bg-[#141d66]/90 text-white transition hover:brightness-125"
@@ -187,6 +205,7 @@ export default function Topbar({
               onClick={() => {
                 setUserMenuOpen((prev) => !prev);
                 setOpen(false);
+                setQuickOpen(false);
               }}
               className="hidden h-10 items-center gap-3 rounded-[14px] border border-blue-300/10 bg-[#141d66]/90 px-3 transition hover:brightness-125 md:flex"
             >

@@ -7,13 +7,13 @@ import {
   FaPaperPlane,
   FaTimes,
   FaTrash,
+  FaEdit,
 } from "react-icons/fa";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import MainLayout from "../../layout/MainLayout";
 import API from "../../services/api";
 
-// Formats role strings: "project-manager" → "Project Manager"
 const formatRole = (role) => {
   if (!role) return "Team Member";
   return role
@@ -42,13 +42,17 @@ export default function Community() {
   const [openCommentsId, setOpenCommentsId] = useState(null);
   const [commentDrafts, setCommentDrafts] = useState({});
   const [deletingId, setDeletingId] = useState(null);
+
   const [isPollOpen, setIsPollOpen] = useState(false);
   const [postText, setPostText] = useState("");
   const [pollText, setPollText] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
   const [pollError, setPollError] = useState("");
 
-  // ── Fetch posts ──────────────────────────────────────────────────────────────
+  const [editTarget, setEditTarget] = useState(null);
+  const [editText, setEditText] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+
   const fetchPosts = async (silent = false) => {
     try {
       if (!silent) setIsLoading(true);
@@ -66,61 +70,77 @@ export default function Community() {
     fetchPosts();
   }, []);
 
-  // const isPostOwner = (post) => {
-  //   if (!currentUserId) return false;
-  //   const rawId =
-  //     typeof post.userId === "object" && post.userId !== null
-  //       ? String(post.userId._id || "")
-  //       : String(post.userId || "");
-  //   return rawId.trim() === currentUserId;
-  // };
-const isPostOwner = (post) => {
-  if (!currentUserId) return false;
+  const isPostOwner = (post) => {
+    if (!currentUserId) return false;
 
-  const userField = post.userId;
-  const rawId =
-    typeof userField === "object" && userField !== null
-      ? String(userField._id || userField.id || "")
-      : String(userField || "");
+    const userField = post.userId;
+    const rawId =
+      typeof userField === "object" && userField !== null
+        ? String(userField._id || userField.id || "")
+        : String(userField || "");
 
-  return rawId.trim() !== "" && rawId.trim() === currentUserId;
-};
+    return rawId.trim() !== "" && rawId.trim() === currentUserId;
+  };
 
   const resolveAvatar = (userField) => {
     if (typeof userField === "object" && userField?.avatar) return userField.avatar;
+
     const uid =
-      typeof userField === "object" ? String(userField?._id || "") : String(userField || "");
+      typeof userField === "object"
+        ? String(userField?._id || "")
+        : String(userField || "");
+
     if (uid === currentUserId) return currentUserInfo.avatar;
-    const name = typeof userField === "object" ? (userField?.name || "User") : "User";
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=26377f&color=fff&bold=true`;
+
+    const name =
+      typeof userField === "object" ? userField?.name || "User" : "User";
+
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(
+      name
+    )}&background=26377f&color=fff&bold=true`;
   };
 
   const resolveName = (userField) => {
     if (typeof userField === "object" && userField?.name) return userField.name;
+
     const uid =
-      typeof userField === "object" ? String(userField?._id || "") : String(userField || "");
+      typeof userField === "object"
+        ? String(userField?._id || "")
+        : String(userField || "");
+
     if (uid === currentUserId) return currentUserInfo.name;
+
     return "Flowio User";
   };
 
   const resolveRole = (userField) => {
-    if (typeof userField === "object" && userField?.role) return formatRole(userField.role);
+    if (typeof userField === "object" && userField?.role) {
+      return formatRole(userField.role);
+    }
+
     const uid =
-      typeof userField === "object" ? String(userField?._id || "") : String(userField || "");
+      typeof userField === "object"
+        ? String(userField?._id || "")
+        : String(userField || "");
+
     if (uid === currentUserId) return currentUserInfo.role;
+
     return "Team Member";
   };
 
   const addPost = async (e) => {
     e.preventDefault();
+
     const trimmed = postText.trim();
     if (!trimmed) return;
 
     const toastId = toast.loading("Posting...");
+
     try {
       await API.post("/api/posts", { content: trimmed });
       setPostText("");
       await fetchPosts(true);
+
       toast.update(toastId, {
         render: "Post published!",
         type: "success",
@@ -137,115 +157,138 @@ const isPostOwner = (post) => {
     }
   };
 
-  // const toggleLike = async (post) => {
-  //   const postId = post._id;
-  //   if (!postId) return;
+  const openEditModal = (post) => {
+    setOpenMenuId(null);
+    setEditTarget(post);
+    setEditText(post.content || "");
+  };
 
-  //   const isLiked = post.likes?.map(String).includes(currentUserId);
+  const closeEditModal = () => {
+    setEditTarget(null);
+    setEditText("");
+    setIsEditing(false);
+  };
 
-  //   setPosts((prev) =>
-  //     prev.map((p) => {
-  //       if (p._id !== postId) return p;
-  //       return {
-  //         ...p,
-  //         likes: isLiked
-  //           ? (p.likes || []).filter((id) => String(id) !== currentUserId)
-  //           : [...(p.likes || []), currentUserId],
-  //       };
-  //     })
-  //   );
+  const saveEditedPost = async (e) => {
+    e.preventDefault();
 
-  //   try {
-  //     if (isLiked) {
-  //       await API.delete(`/api/posts/${postId}/like`);
-  //     } else {
-  //       await API.post(`/api/posts/${postId}/like`);
-  //     }
-  //   } catch {
-  //     setPosts((prev) =>
-  //       prev.map((p) => {
-  //         if (p._id !== postId) return p;
-  //         return {
-  //           ...p,
-  //           likes: isLiked
-  //             ? [...(p.likes || []), currentUserId]
-  //             : (p.likes || []).filter((id) => String(id) !== currentUserId),
-  //         };
-  //       })
-  //     );
-  //     toast.error("Could not update like. Try again.");
-  //   }
-  // };
-const toggleLike = async (post) => {
-  const postId = post._id;
-  if (!postId) return;
+    if (!editTarget?._id) return;
 
-  const isLiked = (post.likes || []).some((like) => {
-    const likeId =
-      typeof like === "object" && like !== null
-        ? String(like._id || like.id || "")
-        : String(like || "");
-    return likeId === currentUserId;
-  });
-
-  // Optimistic update
-  setPosts((prev) =>
-    prev.map((p) => {
-      if (p._id !== postId) return p;
-      return {
-        ...p,
-        likes: isLiked
-          ? (p.likes || []).filter((id) => {
-              const likeId =
-                typeof id === "object" && id !== null
-                  ? String(id._id || id.id || "")
-                  : String(id || "");
-              return likeId !== currentUserId;
-            })
-          : [...(p.likes || []), currentUserId],
-      };
-    })
-  );
-
-  try {
-    if (isLiked) {
-      await API.delete(`/api/posts/${postId}/like`);
-    } else {
-      await API.post(`/api/posts/${postId}/like`);
+    const trimmed = editText.trim();
+    if (!trimmed) {
+      toast.error("Post content cannot be empty.");
+      return;
     }
-  } catch {
-    // Revert on failure
+
+    setIsEditing(true);
+    const toastId = toast.loading("Updating post...");
+
+    try {
+      await API.put(`/api/posts/${editTarget._id}`, { content: trimmed });
+
+      setPosts((prev) =>
+        prev.map((post) =>
+          post._id === editTarget._id ? { ...post, content: trimmed } : post
+        )
+      );
+
+      toast.update(toastId, {
+        render: "Post updated successfully!",
+        type: "success",
+        isLoading: false,
+        autoClose: 2500,
+      });
+
+      closeEditModal();
+    } catch {
+      toast.update(toastId, {
+        render: "Failed to update post.",
+        type: "error",
+        isLoading: false,
+        autoClose: 3000,
+      });
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
+  const toggleLike = async (post) => {
+    const postId = post._id;
+    if (!postId) return;
+
+    const isLiked = (post.likes || []).some((like) => {
+      const likeId =
+        typeof like === "object" && like !== null
+          ? String(like._id || like.id || "")
+          : String(like || "");
+
+      return likeId === currentUserId;
+    });
+
     setPosts((prev) =>
       prev.map((p) => {
         if (p._id !== postId) return p;
+
         return {
           ...p,
           likes: isLiked
-            ? [...(p.likes || []), currentUserId]
-            : (p.likes || []).filter((id) => {
+            ? (p.likes || []).filter((id) => {
                 const likeId =
                   typeof id === "object" && id !== null
                     ? String(id._id || id.id || "")
                     : String(id || "");
+
                 return likeId !== currentUserId;
-              }),
+              })
+            : [...(p.likes || []), currentUserId],
         };
       })
     );
-    toast.error("Could not update like. Try again.");
-  }
-};
+
+    try {
+      if (isLiked) {
+        await API.delete(`/api/posts/${postId}/like`);
+      } else {
+        await API.post(`/api/posts/${postId}/like`);
+      }
+    } catch {
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (p._id !== postId) return p;
+
+          return {
+            ...p,
+            likes: isLiked
+              ? [...(p.likes || []), currentUserId]
+              : (p.likes || []).filter((id) => {
+                  const likeId =
+                    typeof id === "object" && id !== null
+                      ? String(id._id || id.id || "")
+                      : String(id || "");
+
+                  return likeId !== currentUserId;
+                }),
+          };
+        })
+      );
+
+      toast.error("Could not update like. Try again.");
+    }
+  };
 
   const deletePost = async (postId) => {
     if (!postId) return;
 
     setOpenMenuId(null);
     setDeletingId(postId);
+
     const toastId = toast.loading("Deleting post...");
 
     try {
       await API.delete(`/api/posts/${postId}`);
+
       setPosts((prev) => prev.filter((p) => p._id !== postId));
+
       toast.update(toastId, {
         render: "Post deleted.",
         type: "success",
@@ -265,225 +308,122 @@ const toggleLike = async (post) => {
   };
 
   const addComment = async (event, postId) => {
-    event.preventDefault();
-    if (!postId) return;
-    const content = (commentDrafts[postId] || "").trim();
-    if (!content) return;
+  event.preventDefault();
 
-    setCommentDrafts((prev) => ({ ...prev, [postId]: "" }));
+  if (!postId) return;
+
+  const content = (commentDrafts[postId] || "").trim();
+
+  if (!content) return;
+
+  setCommentDrafts((prev) => ({
+    ...prev,
+    [postId]: "",
+  }));
+
+  try {
+    await API.post(
+      `/api/posts/${postId}/comment`,
+      {
+        content,
+      }
+    );
+
+    await fetchPosts(true);
+  } catch (error) {
+    console.log(error.response?.data);
+    toast.error("Failed to post comment.");
+  }
+};
+
+  const handleVote = async (pollId, option, postId) => {
+    if (!pollId || !option || !postId) return;
+
     try {
-      await API.post(`/api/posts/${postId}/comment`, { content });
-      await fetchPosts(true);
+      const response = await API.post("/api/polls/vote", {
+        postId,
+        pollId,
+        optionText: option.text,
+        optionId: option._id || option.id,
+      });
+
+      if (response.data?.data) {
+        const updatedPoll = response.data.data;
+
+        setPosts((prev) =>
+          prev.map((p) =>
+            p._id === postId ? { ...p, pollId: updatedPoll } : p
+          )
+        );
+
+        toast.success(response.data.message || "Vote updated!");
+      }
     } catch {
-      toast.error("Failed to post comment.");
+      toast.error("Failed to cast vote.");
     }
   };
 
-const handleVote = async (pollId, option, postId) => {
-  if (!pollId || !option || !postId) return;
+  const addPoll = async (e) => {
+    e.preventDefault();
 
-  try {
-    const response = await API.post("/api/polls/vote", {
-      postId,
-      pollId,
-      optionText: option.text,
-      optionId: option._id || option.id,
+    const trimmedQuestion = pollText.trim();
+
+    const formattedOptions = pollOptions
+      .map((opt) => opt.trim())
+      .filter(Boolean)
+      .map((text) => ({ text }));
+
+    if (!trimmedQuestion) {
+      setPollError("Question is required.");
+      return;
+    }
+
+    if (formattedOptions.length < 2) {
+      setPollError("At least 2 options required.");
+      return;
+    }
+
+    const createPollPromise = API.post("/api/posts", {
+      content: trimmedQuestion,
+      pollData: {
+        question: trimmedQuestion,
+        options: formattedOptions,
+      },
     });
 
-    if (response.data?.data) {
-      const updatedPoll = response.data.data;
-      setPosts((prev) =>
-        prev.map((p) =>
-          p._id === postId ? { ...p, pollId: updatedPoll } : p
-        )
-      );
-      toast.success(response.data.message || "Vote updated!");
-    }
-  } catch (err) {
-    toast.error("Failed to cast vote.");
-  }
-};
-  //   if (!pollId || !option || !postId) return;
-
-  //   // Optimistic update
-  //   setPosts((prev) =>
-  //     prev.map((p) => {
-  //       if (p._id !== postId) return p;
-        
-  //       const currentPoll = p.pollId || p.pollData;
-  //       if (!currentPoll) return p;
-        
-  //       const totalVotes = (currentPoll.totalVotes || 0) + 1;
-  //       const updatedOptions = currentPoll.options.map((opt) => {
-  //         if (opt.text === option.text) {
-  //           const newVoteCount = (opt.voteCount || 0) + 1;
-  //           return {
-  //             ...opt,
-  //             voteCount: newVoteCount,
-  //             votedByMe: true,
-  //             percentage: Math.round((newVoteCount / totalVotes) * 100)
-  //           };
-  //         }
-  //         const currentCount = opt.voteCount || 0;
-  //         return {
-  //           ...opt,
-  //           percentage: totalVotes > 0 ? Math.round((currentCount / totalVotes) * 100) : 0
-  //         };
-  //       });
-        
-  //       return {
-  //         ...p,
-  //         pollId: {
-  //           ...currentPoll,
-  //           options: updatedOptions,
-  //           totalVotes: totalVotes
-  //         }
-  //       };
-  //     })
-  //   );
-
-  //   try {
-  //     const response = await API.post("/api/polls/vote", {
-  //       postId,
-  //       pollId,
-  //       optionText: option.text,
-  //       optionId: option._id || option.id,
-  //     });
-
-  //     if (response.data?.data) {
-  //       const updatedPoll = response.data.data;
-  //       setPosts((prev) =>
-  //         prev.map((p) => 
-  //           p._id === postId 
-  //             ? { 
-  //                 ...p, 
-  //                 pollId: {
-  //                   ...updatedPoll,
-  //                   options: updatedPoll.options.map(opt => ({
-  //                     ...opt,
-  //                     votedByMe: opt.votedByMe || (opt.text === option.text)
-  //                   }))
-  //                 } 
-  //               }
-  //             : p
-  //         )
-  //       );
-  //       toast.success("Vote recorded!");
-  //     }
-      
-  //   } catch (err) {
-  //     await fetchPosts(true);
-  //     const msg = err.response?.data?.message;
-  //     if (msg === "You have already voted in this poll!") {
-  //       toast.info("You already voted on this poll.");
-  //     } else {
-  //       toast.error("Failed to cast vote.");
-  //     }
-  //   }
-  // };
-
-// const addPoll = async (e) => {
-//   e.preventDefault();
-//   const trimmedQuestion = pollText.trim();
-  
-//   // Only send the text for each option, no extra fields
-//   const formattedOptions = pollOptions
-//     .map((opt) => opt.trim())
-//     .filter(Boolean)
-//     .map((text) => ({ text })); // ← Only { text } - no extra fields
-
-//   if (!trimmedQuestion) return setPollError("Question is required.");
-//   if (formattedOptions.length < 2) return setPollError("At least 2 options required.");
-
-//   const toastId = toast.loading("Creating poll...");
-//   try {
-//     await API.post("/api/posts", {
-//       content: trimmedQuestion,
-//       pollData: { 
-//         question: trimmedQuestion, 
-//         options: formattedOptions  // ← Send only { text } objects
-//       },
-//     });
-//     closePollModal();
-//     await fetchPosts(true);
-//     toast.update(toastId, {
-//       render: "Poll created!",
-//       type: "success",
-//       isLoading: false,
-//       autoClose: 2500,
-//     });
-//   } catch (error) {
-//     console.error("Poll creation error:", error.response?.data);
-//     closePollModal();
-//     toast.update(toastId, {
-//       render: error.response?.data?.message || "Failed to create poll.",
-//       type: "error",
-//       isLoading: false,
-//       autoClose: 3000,
-//     });
-//   }
-// };
-
-const addPoll = async (e) => {
-  e.preventDefault();
-  const trimmedQuestion = pollText.trim();
-  
-  // Clean options - only send text, no extra fields
-  const formattedOptions = pollOptions
-    .map((opt) => opt.trim())
-    .filter(Boolean)
-    .map((text) => ({ text }));
-
-  if (!trimmedQuestion) {
-    setPollError("Question is required.");
-    return;
-  }
-  
-  if (formattedOptions.length < 2) {
-    setPollError("At least 2 options required.");
-    return;
-  }
-
-  // Create the promise
-  const createPollPromise = API.post("/api/posts", {
-    content: trimmedQuestion,
-    pollData: { 
-      question: trimmedQuestion, 
-      options: formattedOptions
-    },
-  });
-
-  // Use toast.promise to handle all states
-  toast.promise(createPollPromise, {
-    pending: "Creating poll...",
-    success: {
-      render() {
-        closePollModal();
-        fetchPosts(true);
-        return "Poll created successfully!";
+    toast.promise(createPollPromise, {
+      pending: "Creating poll...",
+      success: {
+        render() {
+          closePollModal();
+          fetchPosts(true);
+          return "Poll created successfully!";
+        },
+        autoClose: 2500,
       },
-      autoClose: 2500,
-    },
-    error: {
-      render({ data }) {
-        const errorMessage = data?.response?.data?.message || "Failed to create poll.";
-        setPollError(errorMessage);
-        return errorMessage;
+      error: {
+        render({ data }) {
+          const errorMessage =
+            data?.response?.data?.message || "Failed to create poll.";
+          setPollError(errorMessage);
+          return errorMessage;
+        },
+        autoClose: 3000,
       },
-      autoClose: 3000,
+    });
+
+    try {
+      await createPollPromise;
+    } catch (error) {
+      console.error("Poll creation failed:", error);
     }
-  });
+  };
 
-  try {
-    await createPollPromise;
-  } catch (error) {
-    // Error is already handled by toast.promise
-    console.error("Poll creation failed:", error);
-  }
-};
-
-  const updatePollOption = (index, value) =>
-    setPollOptions((prev) => prev.map((opt, idx) => (idx === index ? value : opt)));
+  const updatePollOption = (index, value) => {
+    setPollOptions((prev) =>
+      prev.map((opt, idx) => (idx === index ? value : opt))
+    );
+  };
 
   const closePollModal = () => {
     setIsPollOpen(false);
@@ -518,13 +458,13 @@ const addPoll = async (e) => {
         )}
 
         <div className="mx-auto flex w-full max-w-[820px] flex-col">
-          {/* Compose box */}
           <div className="mx-auto mb-7 flex w-full max-w-[760px] items-start gap-3 sm:items-center sm:gap-4">
             <img
               src={currentUserInfo.avatar}
               alt=""
               className="hidden h-11 w-11 rounded-full object-cover ring-2 ring-[#64CFFF]/25 sm:block"
             />
+
             <form
               onSubmit={addPost}
               className="flex min-w-0 flex-1 flex-wrap items-center gap-3 rounded-[14px] border border-blue-300/10 bg-[#101650]/90 p-3 shadow-[0_14px_34px_rgba(0,0,0,.18)] sm:h-13 sm:flex-nowrap sm:px-5 sm:py-0"
@@ -535,6 +475,7 @@ const addPoll = async (e) => {
                 placeholder="Ask a question..."
                 className="h-8 min-w-[140px] flex-1 bg-transparent text-xs text-white outline-none placeholder:text-white/55"
               />
+
               <button
                 type="submit"
                 disabled={!postText.trim()}
@@ -542,6 +483,7 @@ const addPoll = async (e) => {
               >
                 Post
               </button>
+
               <button
                 type="button"
                 onClick={() => setIsPollOpen(true)}
@@ -571,18 +513,22 @@ const addPoll = async (e) => {
                 if (!postId) return null;
 
                 const isOwner = isPostOwner(post);
-                // const isLiked = post.likes?.map(String).includes(currentUserId);
+
                 const isLiked = (post.likes || []).some((like) => {
-  const likeId =
-    typeof like === "object" && like !== null
-      ? String(like._id || like.id || "")
-      : String(like || "");
-  return likeId === currentUserId;
-});
+                  const likeId =
+                    typeof like === "object" && like !== null
+                      ? String(like._id || like.id || "")
+                      : String(like || "");
+
+                  return likeId === currentUserId;
+                });
+
                 const isDeleting = deletingId === postId;
-                const activePoll = post.pollId && typeof post.pollId === "object"
-                  ? post.pollId
-                  : post.pollData || null;
+
+                const activePoll =
+                  post.pollId && typeof post.pollId === "object"
+                    ? post.pollId
+                    : post.pollData || null;
 
                 return (
                   <article
@@ -591,159 +537,224 @@ const addPoll = async (e) => {
                       openMenuId === postId ? "z-20" : "z-0"
                     } ${isDeleting ? "pointer-events-none opacity-40" : ""}`}
                   >
-                    {/* Post header */}
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-4">
-                        <img
-                          src={resolveAvatar(post.userId)}
-                          alt=""
-                          className="h-12 w-12 rounded-full object-cover ring-2 ring-[#64CFFF]/20"
-                        />
-                        <div>
-                          <h3 className="text-[15px] font-bold">
-                            {resolveName(post.userId)}
-                          </h3>
-                          <p className="mt-1 text-[11px] text-white/55">
-                            {resolveRole(post.userId)}
-                          </p>
-                        </div>
-                      </div>
+                   <div className="flex items-start justify-between gap-4">
+  <div className="flex items-center gap-4">
+    <img
+      src={resolveAvatar(post.userId)}
+      alt=""
+      className="h-12 w-12 rounded-full object-cover ring-2 ring-[#64CFFF]/20"
+    />
 
-                      {isOwner && (
-                        <div className="relative">
-                          <button
-                            type="button"
-                            onClick={() => setOpenMenuId(openMenuId === postId ? null : postId)}
-                            className="flex h-8 w-8 items-center justify-center rounded-full text-white/65 transition hover:bg-white/10 hover:text-white"
-                          >
-                            <FaEllipsisH size={14} />
-                          </button>
+    <div>
+      <h3 className="text-[15px] font-bold">
+        {resolveName(post.userId)}
+      </h3>
 
-                          {openMenuId === postId && (
-                            <div className="absolute right-0 top-9 z-20 w-36 rounded-2xl border border-white/10 bg-[#121957] p-2 shadow-[0_18px_40px_rgba(0,0,0,.45)]">
-                              <button
-                                type="button"
-                                onClick={() => deletePost(postId)}
-                                className="flex h-9 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-semibold text-[#ff6b8a] transition hover:bg-red-400/15"
-                              >
-                                <FaTrash size={11} />
-                                Delete post
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+      <p className="mt-1 text-[11px] text-white/55">
+        {resolveRole(post.userId)}
+      </p>
+    </div>
+  </div>
 
-                    {/* Post content */}
-                    <p className="mt-5 text-[13px] leading-relaxed text-white/85">
-                      {post.content}
-                    </p>
+  <div className="relative">
+    <button
+      type="button"
+      onClick={() =>
+        setOpenMenuId(openMenuId === postId ? null : postId)
+      }
+      className="flex h-8 w-8 items-center justify-center rounded-full text-white/65 transition hover:bg-white/10 hover:text-white"
+    >
+      <FaEllipsisH size={14} />
+    </button>
 
-                    {/* Poll */}
-                  {activePoll && activePoll.options && (
-  <div className="mt-4 space-y-2">
-    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#64CFFF]/80">
-      📊 {activePoll.question}
-    </p>
-    {activePoll.options.map((option, idx) => {
-      const totalVotes = activePoll.totalVotes || 0;
-      const voteCount = option.voteCount || 0;
-      const percentage = option.percentage || 0;
-      const votedByMe = option.votedByMe || false;
+    {openMenuId === postId && (
+  <div className="absolute right-0 top-9 z-20 w-40 rounded-2xl border border-white/10 bg-[#121957] p-2 shadow-[0_18px_40px_rgba(0,0,0,.45)]">
+    {isOwner ? (
+      <>
+       <button
+  type="button"
+  onClick={() => openEditModal(post)}
+  className="mb-1 flex h-9 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-semibold text-white/80 transition hover:bg-blue-400/15 hover:text-white"
+>
+  <FaEdit size={11} />
+  Edit Post
+</button>
 
-      return (
+<button
+  type="button"
+  onClick={() => deletePost(postId)}
+  className="flex h-9 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-semibold text-[#ff6b8a] transition hover:bg-red-400/15"
+>
+  <FaTrash size={11} />
+  Delete Post
+</button>
+      </>
+    ) : (
+      <>
         <button
-          key={option._id || idx}
           type="button"
-          onClick={() => handleVote(activePoll._id || activePoll.id, option, postId)}
-          className={`relative h-11 w-full overflow-hidden rounded-xl border px-4 text-left text-xs transition ${
-            votedByMe
-              ? "border-[#64CFFF]/50 bg-[#64CFFF]/10 text-white"
-              : "border-white/10 bg-white/[0.04] text-white/75 hover:border-[#64CFFF]/40 hover:bg-[#64CFFF]/5"
-          }`}
+          onClick={() => {
+            setOpenMenuId(null);
+            toast.info("Post link copied.");
+          }}
+          className="mb-1 flex h-9 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-semibold text-white/80 transition hover:bg-blue-400/15 hover:text-white"
         >
-          <div
-            className="absolute inset-y-0 left-0 rounded-xl bg-[#64CFFF]/10 transition-all duration-500"
-            style={{ width: `${percentage}%` }}
-          />
-          <span className="relative z-10 flex w-full items-center justify-between gap-3">
-            <span className="flex items-center gap-2">
-              {votedByMe && <span className="text-[#64CFFF]">✓</span>}
-              {option.text}
-            </span>
-            {totalVotes > 0 && (
-              <span className="text-[10px] font-bold text-white/50">
-                {percentage}%
-                <span className="ml-1 text-white/30">({voteCount})</span>
-              </span>
-            )}
-          </span>
+          Copy Link
         </button>
-      );
-    })}
-    {(activePoll.totalVotes ?? 0) > 0 && (
-      <p className="pt-1 text-[10px] text-white/30">
-        {activePoll.totalVotes} vote{activePoll.totalVotes !== 1 ? "s" : ""}
-      </p>
-    )}
-    {activePoll.options.some((o) => o.votedByMe) && (
-      <p className="pt-1 text-[10px] text-white/40">
-        Click your selected option again to remove your vote, or pick another to change it.
-      </p>
+
+        <button
+          type="button"
+          onClick={() => {
+            setOpenMenuId(null);
+            toast.success("Post reported.");
+          }}
+          className="flex h-9 w-full items-center gap-2 rounded-xl px-3 text-left text-xs font-semibold text-[#ffbd67] transition hover:bg-yellow-400/15"
+        >
+          Report Post
+        </button>
+      </>
     )}
   </div>
 )}
+  </div>
+</div>
 
-                    {/* Like / comment row */}
+                    <p className="mt-5 whitespace-pre-wrap text-[13px] leading-relaxed text-white/85">
+                      {post.content}
+                    </p>
+
+                    {activePoll && activePoll.options && (
+                      <div className="mt-4 space-y-2">
+                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#64CFFF]/80">
+                          📊 {activePoll.question}
+                        </p>
+
+                        {activePoll.options.map((option, idx) => {
+                          const totalVotes = activePoll.totalVotes || 0;
+                          const voteCount = option.voteCount || 0;
+                          const percentage = option.percentage || 0;
+                          const votedByMe = option.votedByMe || false;
+
+                          return (
+                            <button
+                              key={option._id || idx}
+                              type="button"
+                              onClick={() =>
+                                handleVote(
+                                  activePoll._id || activePoll.id,
+                                  option,
+                                  postId
+                                )
+                              }
+                              className={`relative h-11 w-full overflow-hidden rounded-xl border px-4 text-left text-xs transition ${
+                                votedByMe
+                                  ? "border-[#64CFFF]/50 bg-[#64CFFF]/10 text-white"
+                                  : "border-white/10 bg-white/[0.04] text-white/75 hover:border-[#64CFFF]/40 hover:bg-[#64CFFF]/5"
+                              }`}
+                            >
+                              <div
+                                className="absolute inset-y-0 left-0 rounded-xl bg-[#64CFFF]/10 transition-all duration-500"
+                                style={{ width: `${percentage}%` }}
+                              />
+
+                              <span className="relative z-10 flex w-full items-center justify-between gap-3">
+                                <span className="flex items-center gap-2">
+                                  {votedByMe && (
+                                    <span className="text-[#64CFFF]">✓</span>
+                                  )}
+                                  {option.text}
+                                </span>
+
+                                {totalVotes > 0 && (
+                                  <span className="text-[10px] font-bold text-white/50">
+                                    {percentage}%
+                                    <span className="ml-1 text-white/30">
+                                      ({voteCount})
+                                    </span>
+                                  </span>
+                                )}
+                              </span>
+                            </button>
+                          );
+                        })}
+
+                        {(activePoll.totalVotes ?? 0) > 0 && (
+                          <p className="pt-1 text-[10px] text-white/30">
+                            {activePoll.totalVotes} vote
+                            {activePoll.totalVotes !== 1 ? "s" : ""}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     <div className="mt-4 flex items-center justify-between">
                       <div className="flex items-center gap-5">
                         <button
                           type="button"
                           onClick={() => toggleLike(post)}
                           className={`flex items-center gap-1.5 text-lg transition ${
-                            isLiked ? "text-pink-400" : "text-white/60 hover:text-pink-400"
+                            isLiked
+                              ? "text-pink-400"
+                              : "text-white/60 hover:text-pink-400"
                           }`}
                         >
                           {isLiked ? <FaHeart /> : <FaRegHeart />}
+
                           {(post.likes || []).length > 0 && (
-                            <span className="text-xs font-bold">{(post.likes || []).length}</span>
+                            <span className="text-xs font-bold">
+                              {(post.likes || []).length}
+                            </span>
                           )}
                         </button>
 
                         <button
                           type="button"
-                          onClick={() => setOpenCommentsId(openCommentsId === postId ? null : postId)}
+                          onClick={() =>
+                            setOpenCommentsId(
+                              openCommentsId === postId ? null : postId
+                            )
+                          }
                           className={`flex items-center gap-1.5 text-lg transition ${
-                            openCommentsId === postId ? "text-cyan-400" : "text-white/60 hover:text-cyan-400"
+                            openCommentsId === postId
+                              ? "text-cyan-400"
+                              : "text-white/60 hover:text-cyan-400"
                           }`}
                         >
                           <FaRegComment />
+
                           {(post.comments || []).length > 0 && (
-                            <span className="text-xs font-bold">{(post.comments || []).length}</span>
+                            <span className="text-xs font-bold">
+                              {(post.comments || []).length}
+                            </span>
                           )}
                         </button>
                       </div>
 
                       <span className="text-[10px] text-white/30">
                         {post.createdAt
-                          ? new Date(post.createdAt).toLocaleDateString(undefined, {
-                              month: "short",
-                              day: "numeric",
-                            })
+                          ? new Date(post.createdAt).toLocaleDateString(
+                              undefined,
+                              {
+                                month: "short",
+                                day: "numeric",
+                              }
+                            )
                           : ""}
                       </span>
                     </div>
 
-                    {/* Comments section */}
                     {openCommentsId === postId && (
                       <div className="mt-4 border-t border-white/10 pt-4">
-                        <form onSubmit={(e) => addComment(e, postId)} className="flex items-center gap-2 sm:gap-3">
+                        <form
+                          onSubmit={(e) => addComment(e, postId)}
+                          className="flex items-center gap-2 sm:gap-3"
+                        >
                           <img
                             src={currentUserInfo.avatar}
                             alt=""
                             className="hidden h-8 w-8 flex-shrink-0 rounded-full object-cover sm:block"
                           />
+
                           <input
                             value={commentDrafts[postId] || ""}
                             onChange={(e) =>
@@ -755,6 +766,7 @@ const addPoll = async (e) => {
                             placeholder="Add a comment..."
                             className="h-10 min-w-0 flex-1 rounded-[14px] border border-white/10 bg-[#080d31] px-4 text-xs text-white outline-none placeholder:text-white/35 focus:border-[#64CFFF]/60"
                           />
+
                           <button
                             type="submit"
                             disabled={!(commentDrafts[postId] || "").trim()}
@@ -772,6 +784,7 @@ const addPoll = async (e) => {
                           ) : (
                             (post.comments || []).map((comment, index) => {
                               if (!comment) return null;
+
                               return (
                                 <div
                                   key={comment._id || comment.id || index}
@@ -782,10 +795,12 @@ const addPoll = async (e) => {
                                     alt=""
                                     className="h-8 w-8 flex-shrink-0 rounded-full object-cover"
                                   />
+
                                   <div className="min-w-0 flex-1">
                                     <span className="text-xs font-bold text-white">
                                       {resolveName(comment.userId)}
                                     </span>
+
                                     <p className="mt-1 break-words text-xs leading-5 text-white/70">
                                       {comment.content}
                                     </p>
@@ -804,12 +819,59 @@ const addPoll = async (e) => {
           )}
         </div>
 
-        {/* Poll creation modal */}
+        {editTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-[26px] border border-white/10 bg-gradient-to-br from-[#16206d] to-[#0d1448] p-6 text-white shadow-2xl">
+              <div className="mb-5 flex items-center justify-between">
+                <h3 className="text-lg font-bold">Edit Post</h3>
+
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  className="rounded-full p-2 text-white/55 transition hover:bg-white/10 hover:text-white"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+
+              <form onSubmit={saveEditedPost} className="space-y-4">
+                <textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  rows="5"
+                  placeholder="Update your post..."
+                  className="w-full resize-none rounded-2xl border border-white/10 bg-[#0a0f35] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#64CFFF]"
+                />
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={closeEditModal}
+                    disabled={isEditing}
+                    className="h-10 rounded-xl px-4 text-sm font-semibold text-white/65 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isEditing || !editText.trim()}
+                    className="h-10 rounded-xl bg-[#5089D6] px-6 text-sm font-bold transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isEditing ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {isPollOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md rounded-[26px] border border-white/10 bg-gradient-to-br from-[#16206d] to-[#0d1448] p-6 text-white shadow-2xl">
               <div className="mb-5 flex items-center justify-between">
                 <h3 className="text-lg font-bold">Create Poll</h3>
+
                 <button
                   type="button"
                   onClick={closePollModal}
@@ -839,14 +901,21 @@ const addPoll = async (e) => {
                     <div key={index} className="flex items-center gap-2">
                       <input
                         value={option}
-                        onChange={(e) => updatePollOption(index, e.target.value)}
+                        onChange={(e) =>
+                          updatePollOption(index, e.target.value)
+                        }
                         placeholder={`Option ${index + 1}`}
                         className="h-11 w-full rounded-xl border border-white/10 bg-[#0a0f35] px-4 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#64CFFF]"
                       />
+
                       {pollOptions.length > 2 && (
                         <button
                           type="button"
-                          onClick={() => setPollOptions((prev) => prev.filter((_, i) => i !== index))}
+                          onClick={() =>
+                            setPollOptions((prev) =>
+                              prev.filter((_, i) => i !== index)
+                            )
+                          }
                           className="flex-shrink-0 text-white/30 transition hover:text-[#ff6b8a]"
                         >
                           <FaTimes size={12} />
@@ -858,7 +927,9 @@ const addPoll = async (e) => {
                   {pollOptions.length < 6 && (
                     <button
                       type="button"
-                      onClick={() => setPollOptions((prev) => [...prev, ""])}
+                      onClick={() =>
+                        setPollOptions((prev) => [...prev, ""])
+                      }
                       className="h-10 rounded-xl border border-white/10 px-4 text-xs font-semibold text-white/70 transition hover:border-[#64CFFF]/45 hover:text-white"
                     >
                       + Add option
@@ -874,6 +945,7 @@ const addPoll = async (e) => {
                   >
                     Cancel
                   </button>
+
                   <button
                     type="submit"
                     className="h-10 rounded-xl bg-[#5089D6] px-6 text-sm font-bold transition hover:brightness-110"

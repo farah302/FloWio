@@ -268,7 +268,17 @@ export default function Meetings() {
   setMessages(initialMessages);
   setAiTyping(false);
 
-  navigate("/summary");
+  navigate("/summary", {
+  state: {
+    source: "meeting",
+    meeting: {
+      title: roomId,
+      type: "Meeting",
+      time: "Just now",
+      summary: messages.map((m) => m.text),
+    },
+  },
+});
 };
 
   const ControlButton = ({ active, onClick, children }) => (
